@@ -505,9 +505,6 @@ extern "C" {
         // [EXPERIMENTAL] [TDRZ] tinydiarize
         bool tdrz_enable;       // enable tinydiarize speaker turn detection
 
-        // A regular expression that matches tokens to suppress
-        const char * suppress_regex;
-
         // tokens to provide to the whisper decoder as initial prompt
         // these are prepended to any existing text context from a previous call
         // use whisper_tokenize() to convert text to tokens
@@ -657,8 +654,10 @@ extern "C" {
 
     WHISPER_API int          whisper_bench_memcpy          (int n_threads);
     WHISPER_API const char * whisper_bench_memcpy_str      (int n_threads);
-    WHISPER_API int          whisper_bench_ggml_mul_mat    (int n_threads);
-    WHISPER_API const char * whisper_bench_ggml_mul_mat_str(int n_threads);
+    WHISPER_API int          whisper_bench_ggml_mul_mat    (int n_threads, int n_backend);
+    WHISPER_API const char * whisper_bench_ggml_mul_mat_str(int n_threads, int n_backend);
+
+    WHISPER_API const char * whisper_get_internal_error(void);
 
     // Control logging output; default behavior is to print to stderr
 
