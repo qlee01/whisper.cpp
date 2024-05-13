@@ -1249,7 +1249,6 @@ static size_t aheads_masks_nbytes(struct whisper_aheads_masks & aheads_masks) {
 }
 
 static ggml_backend_t whisper_backend_init(const whisper_context_params & params) {
-    ENTER_FUNC();
     ggml_backend_t backend_gpu = NULL;
 
     // initialize the backends
@@ -3241,7 +3240,6 @@ static std::string whisper_openvino_get_path_cache(std::string path_bin) {
 #endif
 
 struct whisper_state * whisper_init_state(whisper_context * ctx) {
-    ENTER_FUNC();
     fill_sin_cos_table();
 
     whisper_state * state = new whisper_state;
