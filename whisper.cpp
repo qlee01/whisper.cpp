@@ -1734,13 +1734,11 @@ static bool whisper_model_load(struct whisper_model_loader * loader, whisper_con
         }
     }
 
-    WHISPER_LOG_INFO("calling whisper_backend_init\n");
     wctx.backend = whisper_backend_init(wctx.params);
     if (!wctx.backend) {
         WHISPER_LOG_ERROR("%s: failed to initialize the backend\n", __func__);
         return false;
     }
-    WHISPER_LOG_INFO("after calling whisper_backend_init\n");
 
     // allocate tensors in the backend buffers
     model.buffer = ggml_backend_alloc_ctx_tensors(model.ctx, wctx.backend);
@@ -2152,11 +2150,10 @@ static struct ggml_cgraph * whisper_build_graph_encoder(
 
     wstate.embd_enc = cur;
 
-    ggml_graph_print(gf);
+//    ggml_graph_print(gf);
 
     ////////////////////////////////////////////////////////////////////////////
 
-    WHISPER_LOG_INFO("used_mem = %f MB", ggml_used_mem(ctx0)/1e6);
     //printf("%s: used_mem = %f MB, %f MB, %f MB %f MB %f MB\n", __func__,
     //        ggml_used_mem(ctx0)/1e6,
     //        wstate.get_buf_max_mem(0)/1e6,
@@ -2225,7 +2222,7 @@ static struct ggml_cgraph * whisper_build_graph_cross(
         ggml_build_forward_expand(gf, ggml_cpy(ctx0, Vcross, v));
     }
 
-    ggml_graph_print(gf);
+//    ggml_graph_print(gf);
 
     ggml_free(ctx0);
 
@@ -2306,7 +2303,6 @@ static bool whisper_encode_internal(
     if (!whisper_encode_external(wstate)) {
         auto & alloc = wstate.alloc_encode.alloc;
 
-        WHISPER_LOG_INFO("whiserp.cpp encoder");
         ggml_cgraph * gf = whisper_build_graph_encoder(wctx, wstate);
 
         if (!ggml_gallocr_alloc_graph(alloc, gf)) {
@@ -2317,7 +2313,6 @@ static bool whisper_encode_internal(
         if (!ggml_graph_compute_helper(wstate.backend, gf, n_threads)) {
             return false;
         }
-        WHISPER_LOG_INFO("after whiserp.cpp encoder");
     }
 
     // cross
@@ -3249,15 +3244,12 @@ struct whisper_state * whisper_init_state(whisper_context * ctx) {
         WHISPER_LOG_ERROR("%s: whisper_backend_init() failed\n", __func__);
         whisper_free_state(state);
         return nullptr;
-    } else {
-        WHISPER_LOG_INFO("%s: whisper_backend_init() succeed\n", __func__);
-    }
+    } 
 
     // at this point, we don't know yet how many decoders will be used, so we overallocate 3x ctx
     // in theory, there can be a case where this is not enough, but in practice it should always be enough
     const int factor = 3;
 
-    WHISPER_LOG_INFO("calling kv_cache_init");
     if (!kv_cache_init(ctx->model.hparams, state->kv_self, ctx->backend, ctx->itype, factor*ctx->model.hparams.n_text_ctx)) {
         WHISPER_LOG_ERROR("%s: kv_cache_init() failed for self-attention cache\n", __func__);
         whisper_free_state(state);
@@ -3269,7 +3261,6 @@ struct whisper_state * whisper_init_state(whisper_context * ctx) {
         WHISPER_LOG_INFO("%s: kv self size  = %7.2f MB\n", __func__, memory_size / 1e6);
     }
 
-    WHISPER_LOG_INFO("calling kv_cache_init");
     if (!kv_cache_init(ctx->model.hparams, state->kv_cross, ctx->backend, ctx->itype, ctx->model.hparams.n_audio_ctx)) {
         WHISPER_LOG_ERROR("%s: kv_cache_init() failed for cross-attention cache\n", __func__);
         whisper_free_state(state);
@@ -3466,7 +3457,7 @@ struct whisper_context_params whisper_context_default_params() {
 }
 
 struct whisper_context * whisper_init_from_file_with_params_no_state(const char * path_model, struct whisper_context_params params) {
-    WHISPER_LOG_INFO("%s: loading model from '%s', use_gpu %d, backend %d, \n", __func__, path_model, params.use_gpu, params.gpu_device);
+    WHISPER_LOG_INFO("%s: loading model from '%s'\n", __func__, path_model);
 
     auto fin = std::ifstream(path_model, std::ios::binary);
     if (!fin) {
@@ -3564,10 +3555,8 @@ struct whisper_context * whisper_init_from_file_with_params(const char * path_mo
         return nullptr;
     }
 
-    _s_internal_error_info = "unknown";
     ctx->state = whisper_init_state(ctx);
     if (!ctx->state) {
-        WHISPER_LOG_INFO("whisper init failure\n");
         whisper_free(ctx);
         return nullptr;
     }
@@ -3819,7 +3808,6 @@ int whisper_tokenize(struct whisper_context * ctx, const char * text, whisper_to
 int whisper_token_count(struct whisper_context * ctx, const char * text) {
     return -whisper_tokenize(ctx, text, NULL, 0);
 }
-
 
 int whisper_lang_max_id() {
     auto max_id = 0;
@@ -4093,9 +4081,6 @@ whisper_token whisper_token_transcribe(struct whisper_context * ctx) {
 void whisper_print_timings(struct whisper_context * ctx) {
     const int64_t t_end_us = ggml_time_us();
 
-#ifdef TARGET_ANDROID
-    std::ostringstream timing;
-#endif
 
     WHISPER_LOG_INFO("\n");
     WHISPER_LOG_INFO("%s:     load time = %8.2f ms\n", __func__, ctx->t_load_us / 1000.0f);
@@ -4114,22 +4099,8 @@ void whisper_print_timings(struct whisper_context * ctx) {
         WHISPER_LOG_INFO("%s:   decode time = %8.2f ms / %5d runs (%8.2f ms per run)\n", __func__, 1e-3f * ctx->state->t_decode_us, n_decode, 1e-3f * ctx->state->t_decode_us / n_decode);
         WHISPER_LOG_INFO("%s:   batchd time = %8.2f ms / %5d runs (%8.2f ms per run)\n", __func__, 1e-3f * ctx->state->t_batchd_us, n_batchd, 1e-3f * ctx->state->t_batchd_us / n_batchd);
         WHISPER_LOG_INFO("%s:   prompt time = %8.2f ms / %5d runs (%8.2f ms per run)\n", __func__, 1e-3f * ctx->state->t_prompt_us, n_prompt, 1e-3f * ctx->state->t_prompt_us / n_prompt);
-
-#ifdef TARGET_ANDROID
-        timing << "\n" << "   load time  = " << std::setw(10) << std::fixed <<  std::setprecision(2) <<  (ctx->t_load_us / 1000.0f) << " ms";
-        timing << "\n" << "   fallbacks  = " << std::setw(3)  << (ctx->state->n_fail_p) << " p / " << (ctx->state->n_fail_h) << " h";
-        timing << "\n" << "    mel time  = " << std::setw(10) << std::fixed <<  std::setprecision(2)<< (ctx->state->t_mel_us / 1000.0f)  << " ms";
-        timing << "\n" << " sample time  = " << std::setw(10) << std::fixed <<  std::setprecision(2) << (1e-3f * ctx->state->t_sample_us) << " ms / " << n_sample << " runs (" << (1e-3f * ctx->state->t_sample_us / n_sample) << " ms per run)";
-        timing << "\n" << " encode time  = " << std::setw(10) << std::fixed <<  std::setprecision(2) << (1e-3f * ctx->state->t_encode_us) << " ms / " << n_encode << " runs (" << (1e-3f * ctx->state->t_encode_us / n_sample) << " ms per run)";
-        timing << "\n" << " decode time  = " << std::setw(10) << std::fixed <<  std::setprecision(2) << (1e-3f * ctx->state->t_decode_us) << " ms / " << n_decode << " runs (" << (1e-3f * ctx->state->t_decode_us / n_sample) << " ms per run)";
-        timing << "\n" << " batchd time  = " << std::setw(10) << std::fixed <<  std::setprecision(2) << (1e-3f * ctx->state->t_batchd_us) << " ms / " << n_batchd << " runs (" << (1e-3f * ctx->state->t_batchd_us / n_sample) << " ms per run)";
-        timing << "\n" << " prompt time  = " << std::setw(10) << std::fixed <<  std::setprecision(2) << (1e-3f * ctx->state->t_prompt_us) << " ms / " << n_prompt << " runs (" << (1e-3f * ctx->state->t_prompt_us / n_sample) << " ms per run)";
-#endif
-
     }
     WHISPER_LOG_INFO("%s:    total time = %8.2f ms\n", __func__, (t_end_us - ctx->t_start_us)/1000.0f);
-
-
 }
 
 void whisper_reset_timings(struct whisper_context * ctx) {
@@ -4668,6 +4639,8 @@ struct whisper_full_params whisper_full_default_params(enum whisper_sampling_str
 
         /*.tdrz_enable       =*/ false,
 
+        /* suppress_regex    =*/ nullptr,
+
         /*.initial_prompt    =*/ nullptr,
         /*.prompt_tokens     =*/ nullptr,
         /*.prompt_n_tokens   =*/ 0,
@@ -4915,6 +4888,17 @@ static void whisper_process_logits(
 
         if (params.logits_filter_callback) {
             params.logits_filter_callback(&ctx, &state, tokens_cur.data(), tokens_cur.size(), logits.data(), params.logits_filter_callback_user_data);
+        }
+
+        // suppress any tokens matching a regular expression
+        // ref: https://github.com/openai/whisper/discussions/1041
+        if (params.suppress_regex != nullptr) {
+            std::regex re(params.suppress_regex);
+            for (std::pair<whisper_vocab::token, whisper_vocab::id> token_id : vocab.token_to_id) {
+                if (std::regex_match(token_id.first, re)) {
+                    logits[token_id.second] = -INFINITY;
+                }
+            }
         }
 
         // suppress non-speech tokens
@@ -6415,7 +6399,6 @@ WHISPER_API const char * whisper_bench_memcpy_str(int n_threads) {
     s = "";
     char strbuf[256];
 
-
     ggml_time_init();
 
     size_t n    = 20;
@@ -6450,9 +6433,7 @@ WHISPER_API const char * whisper_bench_memcpy_str(int n_threads) {
         }
 
         snprintf(strbuf, sizeof(strbuf), "memcpy: %7.2f GB/s (heat-up)\n", (double) (n*size)/(tsum*1e9));
-
         s += strbuf;
-
 
         // needed to prevent the compiler from optimizing the memcpy away
         {
@@ -6487,9 +6468,7 @@ WHISPER_API const char * whisper_bench_memcpy_str(int n_threads) {
         }
 
         snprintf(strbuf, sizeof(strbuf), "memcpy: %7.2f GB/s ( 1 thread)\n", (double) (n*size)/(tsum*1e9));
-
         s += strbuf;
-
 
         // needed to prevent the compiler from optimizing the memcpy away
         {
@@ -6541,9 +6520,7 @@ WHISPER_API const char * whisper_bench_memcpy_str(int n_threads) {
         tsum += (t1 - t0)*1e-6;
 
         snprintf(strbuf, sizeof(strbuf), "memcpy: %7.2f GB/s (%2d thread)\n", (double) (n*size)/(tsum*1e9), k);
-
         s += strbuf;
-
 
         // needed to prevent the compiler from optimizing the memcpy away
         {
@@ -6555,7 +6532,6 @@ WHISPER_API const char * whisper_bench_memcpy_str(int n_threads) {
     }
 
     snprintf(strbuf, sizeof(strbuf), "sum:    %f\n", sum);
-
     s += strbuf;
 
     return s.c_str();
@@ -6570,8 +6546,6 @@ WHISPER_API const char * whisper_bench_ggml_mul_mat_str(int n_threads, int n_bac
     static std::string s;
     s = "";
     char strbuf[256];
-
-
 
     ggml_time_init();
 
@@ -6589,8 +6563,6 @@ WHISPER_API const char * whisper_bench_ggml_mul_mat_str(int n_threads, int n_bac
     // when F16 is used, there is an extra work buffer of size N*N*sizeof(float)
     std::vector<uint8_t> buf(3llu*N_max*N_max*sizeof(float) + 3*ggml_tensor_overhead() + ggml_graph_overhead());
     std::vector<uint8_t> work;
-
-
 
     // put a bunch of random data in the buffer
     for (size_t i = 0; i < buf.size(); i++) buf[i] = i;
@@ -6688,7 +6660,6 @@ WHISPER_API const char * whisper_bench_ggml_mul_mat_str(int n_threads, int n_bac
 
             for (int i = 0; i < n_max; ++i) {
                 const int64_t t0 = ggml_time_us();
-
 
                 ggml_graph_compute_helper(gf, work, n_threads, nullptr, nullptr);
 
@@ -7356,14 +7327,9 @@ static void whisper_log_internal(ggml_log_level level, const char * file, const 
     va_list args;
     va_start(args, format);
     char buffer[1024];
-    int len_prefix = snprintf(buffer, 1024, "[%s, %d]: ", func, line);
-    int len = vsnprintf(buffer + len_prefix, 1024 - len_prefix, format, args);
-    if (len < (1024 - len_prefix)) {
-#if (defined __ANDROID__) || (defined ANDROID)
-        __android_log_print(level, "KANTV", "%s", buffer);
-#else
+    int len = vsnprintf(buffer, 1024, format, args);
+    if (len < 1024) {
         g_state.log_callback(level, buffer, g_state.log_callback_user_data);
-#endif
     } else {
         char* buffer2 = new char[len+1];
         vsnprintf(buffer2, len+1, format, args);
